@@ -1,0 +1,76 @@
+version: "1"
+
+# ─── Marimo Scheduler — example schedule definitions ─────────────────────────
+#
+# File naming: any file matching *.marimo-schedule.yml is auto-detected by
+# the marimo-jupyter-scheduler extension on startup and whenever the file
+# changes (requires watchdog).
+#
+# Path convention (relative to JupyterHub root dir, usually ~/):
+#   notebook: notebooks/my_report.py
+#
+# Cron syntax (standard 5-field):
+#   ┌─────────── minute  (0-59)
+#   │ ┌───────── hour    (0-23, UTC unless timezone is set)
+#   │ │ ┌─────── day of month (1-31)
+#   │ │ │ ┌───── month   (1-12)
+#   │ │ │ │ ┌─── day of week (0-6, 0=Sunday)
+#   │ │ │ │ │
+#   * * * * *
+# ─────────────────────────────────────────────────────────────────────────────
+
+schedules:
+
+  # ── 1. Daily HTML report ──────────────────────────────────────────────────
+  - name: daily-sales-report
+    description: "Regenerate the sales dashboard every weekday at 09:00 Berlin time"
+    notebook: notebooks/examples/sales_report.py
+    cron: "0 9 * * 1-5"
+    timezone: "Europe/Berlin"
+    output_formats:
+      - html
+    parameters:
+      date: "${TODAY}"       # substituted at runtime
+      region: "EMEA"
+    env:
+      DATABASE_URL: "${DATABASE_URL}"   # read from container environment
+    tags:
+      - daily
+      - finance
+    enabled: true
+    max_kept_outputs: 14   # keep two weeks of outputs
+
+  # ── 2. Hourly data ingestion (script mode, no HTML output) ────────────────
+  - name: hourly-data-ingest
+    description: "Pull new sensor readings into the warehouse"
+    notebook: notebooks/examples/ingest.py
+    cron: "5 * * * *"     # 5 minutes past every hour
+    timezone: "UTC"
+    output_formats:
+      - script             # run as plain python, no HTML report
+    parameters:
+      batch_size: "500"
+    env:
+      WAREHOUSE_URL: "${WAREHOUSE_URL}"
+    tags:
+      - ingestion
+      - hourly
+    enabled: true
+
+  # ── 3. Weekly model training (disabled by default) ────────────────────────
+  - name: weekly-model-retrain
+    description: "Retrain the churn prediction model every Sunday at 02:00 UTC"
+    notebook: notebooks/examples/train_model.py
+    cron: "0 2 * * 0"
+    timezone: "UTC"
+    output_formats:
+      - html
+    parameters:
+      epochs: "50"
+      learning_rate: "0.001"
+      model_dir: "/models/churn"
+      _timeout: "7200"     # 2h timeout (special _timeout parameter)
+    tags:
+      - ml
+      - weekly
+    enabled: false         # flip to true when ready

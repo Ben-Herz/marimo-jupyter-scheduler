@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:docs.marimo.io)",
+      "WebFetch(domain:jupyter-scheduler.readthedocs.io)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:jupyterlab.readthedocs.io)",
+      "WebFetch(domain:jupyter-server.readthedocs.io)"
+    ]
+  }
+}
