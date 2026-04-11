@@ -23,19 +23,23 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install build tools
+        run: pip install jupyterlab hatch hatch-nodejs-version build
+
+      - name: Install Node dependencies
+        run: jlpm install
+
       - name: Install Python dependencies
-        run: pip install -e ".[dev]" jupyterlab hatch hatch-nodejs-version
+        run: pip install -e ".[dev]"
 
       - name: Run tests
         run: pytest tests/ -v
 
       - name: Build production frontend
-        run: jlpm install && jlpm run build:prod
+        run: jlpm run build:prod
 
       - name: Build distribution packages
-        run: |
-          pip install build
-          python -m build
+        run: python -m build
 
       - name: Verify wheel contents
         run: |
