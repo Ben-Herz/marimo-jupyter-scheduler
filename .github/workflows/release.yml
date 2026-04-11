@@ -27,7 +27,7 @@ jobs:
         run: pip install jupyterlab hatch hatch-nodejs-version build
 
       - name: Install Node dependencies and build frontend
-        run: jlpm install && jlpm run build:prod
+        run: jlpm install --no-immutable && jlpm run build:prod
 
       - name: Install Python dependencies
         # labextension already exists from build:prod, so hatch skip-if-exists fires
