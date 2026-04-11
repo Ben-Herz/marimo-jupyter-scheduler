@@ -13,7 +13,7 @@ Our layer adds Marimo execution, YAML config-as-code, and an enhanced dashboard 
 
 ```python
 c.SchedulerApp.scheduler_class        = "marimo_jupyter_scheduler.scheduler.MarimoScheduler"
-c.Scheduler.execution_manager_class   = "marimo_jupyter_scheduler.executor.MarimoExecutionManager"
+c.Scheduler.execution_manager_class   = "marimo_jupyter_scheduler.executor.RoutingExecutionManager"
 c.Scheduler.task_runner_class         = "marimo_jupyter_scheduler.task_runner.FixedTaskRunner"
 c.SchedulerApp.environment_manager_class = "marimo_jupyter_scheduler.environment.MarimoEnvironmentManager"
 ```
@@ -22,7 +22,7 @@ c.SchedulerApp.environment_manager_class = "marimo_jupyter_scheduler.environment
 
 | File | Purpose |
 |------|---------|
-| `executor.py` | `MarimoExecutionManager` — runs `marimo export html/md` or `python` subprocess; injects params as `MARIMO_PARAM_*` env vars; supports `_last_run`, `_env`, `_python`, `_timeout` special params |
+| `executor.py` | `RoutingExecutionManager` — routes by file extension: `.py` → `MarimoExecutionManager`, `.ipynb` → `DefaultExecutionManager` (nbconvert). `MarimoExecutionManager` runs `marimo export html/md` or `python` subprocess; injects params as `MARIMO_PARAM_*` env vars; supports `_last_run`, `_env`, `_python`, `_timeout` special params |
 | `scheduler.py` | `MarimoScheduler` — fixes `copy_input_file` (creates staging dir, fallback path) and `update_job_definition` (applies output_formats/parameters/tags/name which jupyter-scheduler silently ignores) |
 | `task_runner.py` | `FixedTaskRunner` / `FixedCache` — fixes jupyter-scheduler in-memory SQLite threading bug using SQLAlchemy `StaticPool` |
 | `environment.py` | `MarimoEnvironmentManager` — registers `html`, `script`, `md` as valid output formats |

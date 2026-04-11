@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  test-build-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install jlpm
+        run: npm install -g jlpm
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]" jupyterlab hatch hatch-nodejs-version
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Build production frontend
+        run: jlpm install && jlpm run build:prod
+
+      - name: Build distribution packages
+        run: |
+          pip install build
+          python -m build
+
+      - name: Verify wheel contents
+        run: |
+          pip install check-wheel-contents
+          check-wheel-contents dist/*.whl
+          unzip -l dist/*.whl | grep labextension
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}

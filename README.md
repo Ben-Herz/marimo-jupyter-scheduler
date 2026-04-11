@@ -54,7 +54,7 @@ c.SchedulerApp.scheduler_class = (
     "marimo_jupyter_scheduler.scheduler.MarimoScheduler"
 )
 c.Scheduler.execution_manager_class = (
-    "marimo_jupyter_scheduler.executor.MarimoExecutionManager"
+    "marimo_jupyter_scheduler.executor.RoutingExecutionManager"
 )
 c.Scheduler.task_runner_class = (
     "marimo_jupyter_scheduler.task_runner.FixedTaskRunner"
@@ -179,7 +179,7 @@ c.SchedulerApp.scheduler_class = (
     "marimo_jupyter_scheduler.scheduler.MarimoScheduler"
 )
 c.Scheduler.execution_manager_class = (
-    "marimo_jupyter_scheduler.executor.MarimoExecutionManager"
+    "marimo_jupyter_scheduler.executor.RoutingExecutionManager"
 )
 c.Scheduler.task_runner_class = (
     "marimo_jupyter_scheduler.task_runner.FixedTaskRunner"
