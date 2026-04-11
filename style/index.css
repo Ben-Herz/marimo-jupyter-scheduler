@@ -455,6 +455,30 @@
   border-bottom: var(--jp-border-width) solid var(--jp-border-color2);
 }
 
+/* ─── Last-run status lamp ──────────────────────────────────────────────────── */
+.marimo-status-lamp {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.marimo-status-lamp--ok {
+  background: var(--jp-success-color1, #1e7e34);
+  box-shadow: 0 0 4px var(--jp-success-color1, #1e7e34);
+}
+
+.marimo-status-lamp--err {
+  background: var(--jp-error-color1, #c5221f);
+  box-shadow: 0 0 4px var(--jp-error-color1, #c5221f);
+}
+
+.marimo-status-lamp--none {
+  background: var(--jp-border-color1);
+}
+
 /* ─── Run detail misc ───────────────────────────────────────────────────────── */
 .marimo-run-status-pre {
   margin: 6px 0 0;

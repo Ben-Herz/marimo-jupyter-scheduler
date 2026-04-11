@@ -288,21 +288,11 @@ export function Dashboard(): JSX.Element {
             </Section>
           )}
 
-          {/* Recent failures */}
-          {stats && stats.recent_failures.length > 0 && (
-            <Section title={`Recent Failures (${stats.recent_failures.length})`}>
-              <JobsTable
-                jobs={stats.recent_failures}
-                onDelete={jobId => void handleDelete(jobId)}
-                emptyMessage="No recent failures."
-              />
-            </Section>
-          )}
-
           {/* Scheduled definitions */}
           <Section title={`Scheduled Definitions (${state.jobDefinitions.length})`}>
             <DefinitionsTable
               definitions={state.jobDefinitions}
+              allJobs={state.allJobs}
               selectedId={state.selectedDefinition?.job_definition_id}
               onSelect={def =>
                 dispatch({
@@ -411,13 +401,47 @@ export function Dashboard(): JSX.Element {
 
 // ─── DefinitionsTable ────────────────────────────────────────────────────────
 
+function lastRunStatus(
+  definitionId: string,
+  allJobs: IJob[]
+): 'COMPLETED' | 'FAILED' | null {
+  // Find the most recent job for this definition that has a terminal status
+  const runs = allJobs
+    .filter(
+      j =>
+        j.job_definition_id === definitionId &&
+        (j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'STOPPED')
+    )
+    .sort((a, b) => {
+      const ta = a.end_time ?? a.start_time ?? '';
+      const tb = b.end_time ?? b.start_time ?? '';
+      return tb < ta ? -1 : tb > ta ? 1 : 0;
+    });
+  if (runs.length === 0) return null;
+  return runs[0].status === 'COMPLETED' ? 'COMPLETED' : 'FAILED';
+}
+
+function StatusLamp({ status }: { status: 'COMPLETED' | 'FAILED' | null }): JSX.Element {
+  if (status === null) {
+    return <span className="marimo-status-lamp marimo-status-lamp--none" title="No runs yet" />;
+  }
+  return (
+    <span
+      className={`marimo-status-lamp marimo-status-lamp--${status === 'COMPLETED' ? 'ok' : 'err'}`}
+      title={status === 'COMPLETED' ? 'Last run succeeded' : 'Last run failed'}
+    />
+  );
+}
+
 function DefinitionsTable({
   definitions,
+  allJobs,
   selectedId,
   onSelect,
   onDelete,
 }: {
   definitions: IJobDefinition[];
+  allJobs: IJob[];
   selectedId?: string;
   onSelect?: (def: IJobDefinition) => void;
   onDelete?: (id: string) => void;
@@ -434,6 +458,7 @@ function DefinitionsTable({
       <table className="marimo-scheduler-table">
         <thead>
           <tr>
+            <th style={{ width: 28 }}></th>
             <th>Name</th>
             <th>Notebook</th>
             <th>Cron</th>
@@ -453,6 +478,9 @@ function DefinitionsTable({
               onClick={() => onSelect?.(def)}
               title={def.job_definition_id === selectedId ? 'Click to deselect' : 'Click to filter runs'}
             >
+              <td style={{ textAlign: 'center', padding: '7px 8px' }}>
+                <StatusLamp status={lastRunStatus(def.job_definition_id, allJobs)} />
+              </td>
               <td title={def.name}>{def.name || <em>unnamed</em>}</td>
               <td title={def.input_filename}>{def.input_filename}</td>
               <td><code>{def.schedule}</code></td>
