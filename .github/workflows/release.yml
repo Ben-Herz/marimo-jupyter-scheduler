@@ -23,9 +23,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install jlpm
-        run: npm install -g jlpm
-
       - name: Install Python dependencies
         run: pip install -e ".[dev]" jupyterlab hatch hatch-nodejs-version
 
