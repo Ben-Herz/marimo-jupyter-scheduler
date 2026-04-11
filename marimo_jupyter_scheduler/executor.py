@@ -326,9 +326,16 @@ class RoutingExecutionManager(ExecutionManager):
 
     @classmethod
     def supported_features(cls) -> Dict[JobFeature, bool]:
-        # Union of both executors' features
+        # Union of both executors' features.
+        # DefaultExecutionManager.supported_features is not decorated as a
+        # classmethod in some jupyter-scheduler versions, so we call it directly.
         marimo = MarimoExecutionManager.supported_features()
-        default = DefaultExecutionManager.supported_features()
+        try:
+            default = DefaultExecutionManager.supported_features()
+        except TypeError:
+            default = DefaultExecutionManager.__dict__["supported_features"](
+                DefaultExecutionManager
+            )
         return {feature: marimo.get(feature, False) or default.get(feature, False)
                 for feature in JobFeature}
 
