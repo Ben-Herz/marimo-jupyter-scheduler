@@ -26,17 +26,15 @@ jobs:
       - name: Install build tools
         run: pip install jupyterlab hatch hatch-nodejs-version build
 
-      - name: Install Node dependencies
-        run: jlpm install
+      - name: Install Node dependencies and build frontend
+        run: jlpm install && jlpm run build:prod
 
       - name: Install Python dependencies
+        # labextension already exists from build:prod, so hatch skip-if-exists fires
         run: pip install -e ".[dev]"
 
       - name: Run tests
         run: pytest tests/ -v
-
-      - name: Build production frontend
-        run: jlpm run build:prod
 
       - name: Build distribution packages
         run: python -m build
