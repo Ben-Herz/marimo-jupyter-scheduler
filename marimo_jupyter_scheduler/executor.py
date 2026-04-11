@@ -1,13 +1,19 @@
 """
-MarimoExecutionManager — custom execution engine for jupyter-scheduler.
+Execution managers for marimo-jupyter-scheduler.
 
-Replaces the default nbconvert-based executor with one that runs Marimo
-notebooks (.py files) using `marimo export` or `python` subprocess execution.
+RoutingExecutionManager (recommended):
+    Routes jobs by file extension:
+      - .py  → MarimoExecutionManager  (marimo export / python subprocess)
+      - .ipynb → DefaultExecutionManager (nbconvert, original jupyter-scheduler behaviour)
 
-Configure in jupyter_server_config.py:
-    c.Scheduler.execution_manager_class = (
-        "marimo_jupyter_scheduler.executor.MarimoExecutionManager"
-    )
+    Configure in jupyter_server_config.py:
+        c.Scheduler.execution_manager_class = (
+            "marimo_jupyter_scheduler.executor.RoutingExecutionManager"
+        )
+
+MarimoExecutionManager:
+    Handles only Marimo .py notebooks. Use RoutingExecutionManager instead
+    unless you are certain no .ipynb jobs will be created.
 """
 
 from __future__ import annotations
@@ -20,7 +26,7 @@ import time
 from pathlib import Path
 from typing import Dict
 
-from jupyter_scheduler.executors import ExecutionManager
+from jupyter_scheduler.executors import DefaultExecutionManager, ExecutionManager
 from jupyter_scheduler.models import JobFeature
 
 logger = logging.getLogger(__name__)
@@ -302,3 +308,45 @@ class MarimoExecutionManager(ExecutionManager):
             return int((job.parameters or {}).get("_timeout", 3600))
         except (TypeError, ValueError):
             return 3600
+
+
+class RoutingExecutionManager(ExecutionManager):
+    """
+    Routes jobs to the appropriate executor based on the input file extension:
+      - .py   → MarimoExecutionManager
+      - .ipynb → DefaultExecutionManager (nbconvert)
+
+    This allows the original jupyter-scheduler UI to continue scheduling
+    .ipynb notebooks while Marimo .py notebooks are handled natively.
+    """
+
+    @classmethod
+    def validate(cls, *args) -> bool:
+        return True
+
+    @classmethod
+    def supported_features(cls) -> Dict[JobFeature, bool]:
+        # Union of both executors' features
+        marimo = MarimoExecutionManager.supported_features()
+        default = DefaultExecutionManager.supported_features()
+        return {feature: marimo.get(feature, False) or default.get(feature, False)
+                for feature in JobFeature}
+
+    def execute(self) -> None:
+        input_filename = self.model.input_filename or ""
+        if Path(input_filename).suffix.lower() == ".ipynb":
+            logger.info("RoutingExecutionManager: routing '%s' to DefaultExecutionManager", input_filename)
+            DefaultExecutionManager(
+                job_id=self.job_id,
+                root_dir=self.root_dir,
+                db_url=self.db_url,
+                staging_paths=self.staging_paths,
+            ).execute()
+        else:
+            logger.info("RoutingExecutionManager: routing '%s' to MarimoExecutionManager", input_filename)
+            MarimoExecutionManager(
+                job_id=self.job_id,
+                root_dir=self.root_dir,
+                db_url=self.db_url,
+                staging_paths=self.staging_paths,
+            ).execute()
