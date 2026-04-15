@@ -1,6 +1,6 @@
 {
   "name": "marimo-jupyter-scheduler",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A JupyterLab extension to schedule Marimo notebooks in JupyterHub",
   "keywords": [
     "jupyter",

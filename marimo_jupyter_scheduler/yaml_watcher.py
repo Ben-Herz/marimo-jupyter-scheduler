@@ -58,20 +58,28 @@ class YamlScheduleWatcher:
         self._observer: Any = None
 
     def start(self) -> None:
-        """Start the watcher in a background thread."""
-        if _WATCHDOG_AVAILABLE:
-            self._start_watchdog()
-        else:
-            self._start_polling()
+        """Start the watcher in a background thread.
 
-        # Defer the initial scan by a few seconds so jupyter-scheduler has time
-        # to create its DB schema before we try to write to it.
-        def _deferred_sync() -> None:
+        The watchdog observer setup is intentionally deferred to a background
+        thread. On large or slow filesystems (NFS, CIFS) watchdog's InotifyObserver
+        walks the entire directory tree synchronously to register inotify watches,
+        which can block for minutes and prevent the server from starting.
+        """
+        # Defer the initial scan AND watcher setup so neither blocks server startup.
+        def _deferred_start() -> None:
+            # Give jupyter-scheduler time to create its DB schema.
             self._stop_event.wait(timeout=5)
-            if not self._stop_event.is_set():
-                self._sync_all(create_only=True)
+            if self._stop_event.is_set():
+                return
+            # Start the file watcher.
+            if _WATCHDOG_AVAILABLE:
+                self._start_watchdog()
+            else:
+                self._start_polling()
+            # Run the initial sync.
+            self._sync_all(create_only=True)
 
-        t = threading.Thread(target=_deferred_sync, daemon=True, name="marimo-yaml-initial-sync")
+        t = threading.Thread(target=_deferred_start, daemon=True, name="marimo-yaml-initial-sync")
         t.start()
 
     def stop(self) -> None:
