@@ -30,47 +30,56 @@ def _load_jupyter_server_extension(server_app):
     Registers additional Tornado handlers and starts the YAML file watcher.
     The core scheduler functionality comes from jupyter_scheduler itself;
     we only add Marimo-specific endpoints here.
+
+    Everything that could block (DB access, filesystem access, watchdog setup)
+    is deferred to a background thread so this function returns immediately.
     """
+    import threading
     from .handlers import setup_handlers
-    from .yaml_watcher import YamlScheduleWatcher
 
     web_app = server_app.web_app
     setup_handlers(web_app)
 
-    # Start watching for *.marimo-schedule.yml files in the root dir
+    # Capture values we need in the background thread while still on the main thread.
     root_dir = getattr(server_app, "root_dir", ".")
-    try:
-        _scheduler = server_app.web_app.settings.get("scheduler")
-        _db_url = _scheduler.db_url if _scheduler else None
-    except Exception:
-        _db_url = None
+    settings = web_app.settings
 
-    if not _db_url:
+    def _background_init():
+        import time
+        from .yaml_watcher import YamlScheduleWatcher
         from jupyter_core.paths import jupyter_data_dir
-        _db_url = f"sqlite:///{jupyter_data_dir()}/scheduler.sqlite"
-    db_url = _db_url
-    try:
-        scheduler = server_app.web_app.settings.get("scheduler")
-        watcher = YamlScheduleWatcher(root_dir=root_dir, db_url=db_url, scheduler=scheduler)
-        watcher.start()
-        server_app.io_loop.add_callback(lambda: None)  # ensure event loop is running
-    except Exception as e:
-        server_app.log.warning(f"marimo-jupyter-scheduler: YAML watcher failed to start: {e}")
 
-    # Log task runner status so we can confirm the fix is active
-    try:
-        _sched = server_app.web_app.settings.get("scheduler")
-        _tr = getattr(_sched, "task_runner", None)
-        server_app.log.info(
-            "marimo-jupyter-scheduler: task_runner is %s",
-            type(_tr).__name__ if _tr else "None",
-        )
-    except Exception:
-        pass
+        # Give jupyter-scheduler a moment to finish its own initialization
+        # and populate web_app.settings["scheduler"].
+        time.sleep(2)
 
-    server_app.log.info(
-        "marimo-jupyter-scheduler extension loaded. "
-        "Configure jupyter-scheduler with:\n"
-        "  c.Scheduler.execution_manager_class = "
-        "'marimo_jupyter_scheduler.executor.MarimoExecutionManager'"
-    )
+        try:
+            _scheduler = settings.get("scheduler")
+            _db_url = getattr(_scheduler, "db_url", None) if _scheduler else None
+        except Exception:
+            _db_url = None
+
+        if not _db_url:
+            _db_url = f"sqlite:///{jupyter_data_dir()}/scheduler.sqlite"
+
+        try:
+            scheduler = settings.get("scheduler")
+            watcher = YamlScheduleWatcher(root_dir=root_dir, db_url=_db_url, scheduler=scheduler)
+            watcher.start()
+        except Exception as e:
+            server_app.log.warning(f"marimo-jupyter-scheduler: YAML watcher failed to start: {e}")
+
+        try:
+            _sched = settings.get("scheduler")
+            _tr = getattr(_sched, "task_runner", None)
+            server_app.log.info(
+                "marimo-jupyter-scheduler: task_runner is %s",
+                type(_tr).__name__ if _tr else "None",
+            )
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_background_init, daemon=True, name="marimo-extension-init")
+    t.start()
+
+    server_app.log.info("marimo-jupyter-scheduler extension loaded.")
