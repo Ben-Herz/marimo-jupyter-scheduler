@@ -55,3 +55,6 @@ htmlcov/
 
 # Docs
 docs/_build/
+examples/__marimo__/session/ehr_data_pull_mo.py.json
+examples/output.txt
+examples/ehr_data_pull_mo.html
