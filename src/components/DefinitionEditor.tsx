@@ -1,18 +1,22 @@
 /**
- * DefinitionEditor — inline YAML editor for a job definition.
+ * DefinitionEditor — inline editor for a job definition.
  *
- * Reconstructs the definition as editable YAML, lets the user modify it,
- * and PATCHes the changes back to jupyter-scheduler on Save.
+ * Tabs:
+ *   YAML   — edit the schedule YAML and save changes back to jupyter-scheduler
+ *   Flow   — Mermaid dependency graph of the Marimo notebook
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { IJobDefinition, updateJobDefinition } from '../api';
+import { NotebookFlowDiagram } from './NotebookFlowDiagram';
 
 interface IProps {
   definition: IJobDefinition;
   onClose: () => void;
   onSaved: () => void;
 }
+
+type EditorTab = 'yaml' | 'flow';
 
 function definitionToYaml(def: IJobDefinition): string {
   const params = def.parameters && Object.keys(def.parameters).length > 0
@@ -48,8 +52,6 @@ function definitionToYaml(def: IJobDefinition): string {
 }
 
 function yamlToPath(yaml: string): Record<string, unknown> | null {
-  // Minimal parser: just enough to extract the fields we support editing.
-  // We use a line-by-line approach to avoid a full YAML parser dependency.
   try {
     const lines = yaml.split('\n');
     const result: Record<string, unknown> = {};
@@ -65,13 +67,11 @@ function yamlToPath(yaml: string): Record<string, unknown> | null {
       const indent = line.length - trimmed.length;
 
       if (indent === 4 && trimmed.startsWith('- ') && !inParams && !inTags && !inFormats) {
-        // schedule item start
         continue;
       }
 
       const kv = trimmed.match(/^(\w[\w_]*):\s*(.*)$/);
       if (kv && indent === 4) {
-        // New key at schedule level — reset section flags first
         inParams = false; inTags = false; inFormats = false;
         const [, key, val] = kv;
         const v = val.replace(/^["']|["']$/g, '');
@@ -106,12 +106,12 @@ function yamlToPath(yaml: string): Record<string, unknown> | null {
 }
 
 export function DefinitionEditor({ definition, onClose, onSaved }: IProps): JSX.Element {
+  const [activeTab, setActiveTab] = useState<EditorTab>('yaml');
   const [yaml, setYaml] = useState(() => definitionToYaml(definition));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Reset when definition changes
   useEffect(() => {
     setYaml(definitionToYaml(definition));
     setError(null);
@@ -122,7 +122,6 @@ export function DefinitionEditor({ definition, onClose, onSaved }: IProps): JSX.
     setError(null);
     setSuccess(false);
     const patch = yamlToPath(yaml);
-    console.log('[DefinitionEditor] parsed patch:', JSON.stringify(patch));
     if (!patch || !patch['schedule']) {
       setError('Could not parse YAML. Check the format and try again.');
       return;
@@ -130,11 +129,9 @@ export function DefinitionEditor({ definition, onClose, onSaved }: IProps): JSX.
     setSaving(true);
     try {
       await updateJobDefinition(definition.job_definition_id, patch as Parameters<typeof updateJobDefinition>[1]);
-      console.log('[DefinitionEditor] PATCH succeeded');
       setSuccess(true);
       setTimeout(() => onSaved(), 500);
     } catch (e: unknown) {
-      console.error('[DefinitionEditor] PATCH failed:', e);
       setError(String(e));
     } finally {
       setSaving(false);
@@ -149,33 +146,61 @@ export function DefinitionEditor({ definition, onClose, onSaved }: IProps): JSX.
 
   return (
     <div className="marimo-def-editor">
+      {/* Header with title, tab bar, and close button */}
       <div className="marimo-def-editor-header">
         <span className="marimo-def-editor-title">
           Editing: <strong>{definition.name}</strong>
         </span>
+        <div className="marimo-def-editor-tabs">
+          <button
+            className={`marimo-def-editor-tab${activeTab === 'yaml' ? ' marimo-def-editor-tab--active' : ''}`}
+            onClick={() => setActiveTab('yaml')}
+          >
+            YAML
+          </button>
+          <button
+            className={`marimo-def-editor-tab${activeTab === 'flow' ? ' marimo-def-editor-tab--active' : ''}`}
+            onClick={() => setActiveTab('flow')}
+          >
+            Flow Diagram
+          </button>
+        </div>
         <button className="marimo-detail-close" onClick={onClose} title="Close editor">✕</button>
       </div>
-      <textarea
-        className="marimo-scheduler-yaml-editor"
-        value={yaml}
-        onChange={e => { setYaml(e.target.value); setSuccess(false); }}
-        spellCheck={false}
-        rows={18}
-      />
-      <div className="marimo-def-editor-actions">
-        <button
-          className="marimo-scheduler-btn marimo-scheduler-btn--primary"
-          onClick={() => void handleSave()}
-          disabled={saving}
-        >
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-        <button className="marimo-scheduler-btn" onClick={handleReset} disabled={saving}>
-          Reset
-        </button>
-        {error && <span className="marimo-scheduler-error-inline">⚠ {error}</span>}
-        {success && <span className="marimo-scheduler-success-inline">✓ Saved</span>}
-      </div>
+
+      {/* YAML tab */}
+      {activeTab === 'yaml' && (
+        <>
+          <textarea
+            className="marimo-scheduler-yaml-editor"
+            value={yaml}
+            onChange={e => { setYaml(e.target.value); setSuccess(false); }}
+            spellCheck={false}
+            rows={18}
+          />
+          <div className="marimo-def-editor-actions">
+            <button
+              className="marimo-scheduler-btn marimo-scheduler-btn--primary"
+              onClick={() => void handleSave()}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+            <button className="marimo-scheduler-btn" onClick={handleReset} disabled={saving}>
+              Reset
+            </button>
+            {error && <span className="marimo-scheduler-error-inline">⚠ {error}</span>}
+            {success && <span className="marimo-scheduler-success-inline">✓ Saved</span>}
+          </div>
+        </>
+      )}
+
+      {/* Flow Diagram tab */}
+      {activeTab === 'flow' && (
+        <div className="marimo-flow-tab-content">
+          <NotebookFlowDiagram inputFilename={definition.input_filename} />
+        </div>
+      )}
     </div>
   );
 }

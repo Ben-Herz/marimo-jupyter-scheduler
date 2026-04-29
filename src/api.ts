@@ -85,6 +85,17 @@ async function requestJSON<T>(
   return JSON.parse(text) as T;
 }
 
+// ─── Jupyter Server contents API ─────────────────────────────────────────────
+
+export async function fetchFileContent(path: string): Promise<string> {
+  // Strip leading slash — the contents API uses relative paths
+  const cleanPath = path.replace(/^\/+/, '');
+  const data = await requestJSON<{ content: string; type: string }>(
+    `/api/contents/${cleanPath}`
+  );
+  return data.content;
+}
+
 // ─── Marimo-scheduler custom endpoints ───────────────────────────────────────
 
 export async function fetchDashboardStats(): Promise<IDashboardStats> {

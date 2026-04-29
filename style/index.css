@@ -240,6 +240,16 @@
   font-weight: 600;
 }
 
+.marimo-scheduler-filter-btn .jp-StatusBadge {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
 /* ─── Tables ────────────────────────────────────────────────────────────────── */
 .marimo-scheduler-table {
   width: 100%;
@@ -379,8 +389,8 @@
 .marimo-def-editor-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
+  gap: 8px;
+  padding: 4px 12px;
   background: var(--jp-brand-color3, #e3edf9);
   border-bottom: var(--jp-border-width) solid var(--jp-border-color2);
 }
@@ -388,6 +398,37 @@
 .marimo-def-editor-title {
   font-size: var(--jp-ui-font-size1);
   color: var(--jp-ui-font-color1);
+  flex-shrink: 0;
+}
+
+/* ─── Tab bar inside the definition editor ──────────────────────────────────── */
+.marimo-def-editor-tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.marimo-def-editor-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: var(--jp-ui-font-size1);
+  font-family: var(--jp-ui-font-family);
+  color: var(--jp-ui-font-color2);
+  line-height: 1.5;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.marimo-def-editor-tab:hover {
+  color: var(--jp-ui-font-color1);
+}
+
+.marimo-def-editor-tab--active {
+  color: var(--jp-brand-color1);
+  border-bottom-color: var(--jp-brand-color1);
+  font-weight: 600;
 }
 
 .marimo-def-editor-actions {
@@ -477,6 +518,63 @@
 
 .marimo-status-lamp--none {
   background: var(--jp-border-color1);
+}
+
+/* ─── Flow diagram tab ──────────────────────────────────────────────────────── */
+.marimo-flow-tab-content {
+  padding: 16px;
+  min-height: 200px;
+}
+
+.marimo-flow-loading {
+  padding: 24px 16px;
+  color: var(--jp-ui-font-color2);
+  font-style: italic;
+  font-size: var(--jp-ui-font-size1);
+}
+
+.marimo-flow-error {
+  padding: 12px 16px;
+  color: var(--jp-error-color1, #c5221f);
+  font-size: var(--jp-ui-font-size1);
+}
+
+.marimo-flow-container {
+  overflow-x: auto;
+}
+
+.marimo-flow-svg {
+  display: flex;
+  justify-content: center;
+}
+
+.marimo-flow-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.marimo-flow-source-details {
+  margin-top: 12px;
+}
+
+.marimo-flow-source-details summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--jp-ui-font-color2);
+  user-select: none;
+}
+
+.marimo-flow-source {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  font-family: var(--jp-code-font-family, monospace);
+  font-size: 11px;
+  background: var(--jp-layout-color0);
+  border: var(--jp-border-width) solid var(--jp-border-color1);
+  border-radius: 2px;
+  white-space: pre;
+  overflow-x: auto;
+  color: var(--jp-ui-font-color1);
 }
 
 /* ─── Run detail misc ───────────────────────────────────────────────────────── */
