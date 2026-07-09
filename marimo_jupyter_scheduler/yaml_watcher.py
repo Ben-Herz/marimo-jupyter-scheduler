@@ -86,7 +86,12 @@ class YamlScheduleWatcher:
         self._stop_event.set()
         if self._observer:
             self._observer.stop()
-            self._observer.join()
+            # Bounded join: on NFS/CIFS the observer thread can outlive the
+            # container's stop grace period, turning every shutdown into a
+            # SIGKILL. The thread is a daemon, so abandoning it is safe.
+            self._observer.join(timeout=5)
+            if self._observer.is_alive():
+                logger.warning("yaml watcher observer did not stop within 5s; abandoning it")
         if self._thread:
             self._thread.join(timeout=5)
 
