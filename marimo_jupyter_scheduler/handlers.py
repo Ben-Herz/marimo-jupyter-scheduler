@@ -19,8 +19,24 @@ from pathlib import Path
 import tornado.web
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
+from tornado.ioloop import IOLoop
 
 logger = logging.getLogger(__name__)
+
+# One Engine per database, reused across requests. create_session() builds a new
+# Engine and connection pool on every call, which is wasteful when the database
+# lives on NFS and each connect pays a round trip.
+_SESSION_FACTORIES: dict = {}
+
+
+def _get_session_factory(db_url: str):
+    factory = _SESSION_FACTORIES.get(db_url)
+    if factory is None:
+        from jupyter_scheduler.orm import create_session
+
+        factory = create_session(db_url)
+        _SESSION_FACTORIES[db_url] = factory
+    return factory
 
 
 class DashboardHandler(APIHandler):
@@ -52,9 +68,12 @@ class DashboardHandler(APIHandler):
     """
 
     @tornado.web.authenticated
-    def get(self) -> None:
+    async def get(self) -> None:
         try:
-            stats = self._gather_stats()
+            # _gather_stats() hits SQLite, which on an NFS home directory can take
+            # seconds. Running it inline would block the event loop for the whole
+            # server, including JupyterHub's health probes.
+            stats = await IOLoop.current().run_in_executor(None, self._gather_stats)
             self.finish(json.dumps(stats))
         except Exception as exc:
             logger.exception("DashboardHandler error")
@@ -63,35 +82,7 @@ class DashboardHandler(APIHandler):
 
     def _gather_stats(self) -> dict:
         try:
-            from jupyter_scheduler.orm import Job, create_session
-
-            db_url = self._get_db_url()
-            session_factory = create_session(db_url)
-            with session_factory() as session:
-                all_jobs = session.query(Job).all()
-                by_status: dict[str, int] = {}
-                recent_failures: list[dict] = []
-                in_progress: list[dict] = []
-
-                for job in all_jobs:
-                    status = str(job.status)
-                    by_status[status] = by_status.get(status, 0) + 1
-
-                    if status == "FAILED":
-                        recent_failures.append(self._job_summary(job))
-                    elif status == "IN_PROGRESS":
-                        in_progress.append(self._job_summary(job))
-
-                # Sort failures by most recent first
-                recent_failures.sort(key=lambda j: j.get("start_time") or "", reverse=True)
-                recent_failures = recent_failures[:20]
-
-                return {
-                    "total": len(all_jobs),
-                    "by_status": by_status,
-                    "recent_failures": recent_failures,
-                    "in_progress": in_progress,
-                }
+            from jupyter_scheduler.orm import Job
         except ImportError:
             return {
                 "total": 0,
@@ -99,6 +90,34 @@ class DashboardHandler(APIHandler):
                 "recent_failures": [],
                 "in_progress": [],
                 "warning": "jupyter-scheduler ORM not available",
+            }
+
+        from sqlalchemy import func
+
+        session_factory = _get_session_factory(self._get_db_url())
+        with session_factory() as session:
+            # Aggregate in SQL rather than loading every job row into memory.
+            by_status = {
+                str(status): count
+                for status, count in session.query(Job.status, func.count(Job.job_id)).group_by(
+                    Job.status
+                )
+            }
+
+            def _recent(status: str, limit: int) -> list[dict]:
+                rows = (
+                    session.query(Job)
+                    .filter(Job.status == status)
+                    .order_by(Job.start_time.desc())
+                    .limit(limit)
+                )
+                return [self._job_summary(job) for job in rows]
+
+            return {
+                "total": sum(by_status.values()),
+                "by_status": by_status,
+                "recent_failures": _recent("FAILED", 20),
+                "in_progress": _recent("IN_PROGRESS", 100),
             }
 
     def _job_summary(self, job) -> dict:
