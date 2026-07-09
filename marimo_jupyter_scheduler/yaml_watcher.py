@@ -15,6 +15,8 @@ or whenever the files change.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -204,6 +206,7 @@ class YamlScheduleWatcher:
                     is_new = False
                     # Still register with task_runner in case it missed it on startup
                     session.commit()
+                    self._ensure_staged(job_definition_id, job_def_clean.get("input_filename"))
                     self._notify_task_runner(job_definition_id, is_new, job_def_clean)
                     return
                 else:
@@ -219,6 +222,7 @@ class YamlScheduleWatcher:
 
                 session.commit()
 
+            self._ensure_staged(job_definition_id, job_def_clean.get("input_filename"))
             self._notify_task_runner(job_definition_id, is_new, job_def_clean)
 
         except ImportError:
@@ -236,6 +240,48 @@ class YamlScheduleWatcher:
                 job_def.get("name"),
                 exc,
             )
+
+    def _staging_path(self) -> str:
+        staging_path = getattr(self.scheduler, "staging_path", None)
+        if staging_path:
+            return staging_path
+        from jupyter_core.paths import jupyter_data_dir
+
+        return os.path.join(jupyter_data_dir(), "scheduler_staging_area")
+
+    def _ensure_staged(self, job_definition_id: str, input_filename: str | None) -> None:
+        """Copy the notebook into the definition's staging directory.
+
+        jupyter-scheduler snapshots the notebook into
+        {staging_path}/{job_definition_id}/{input_filename} when a definition is
+        created through its own API, and re-validates that snapshot every time
+        the schedule fires. We insert definitions straight into the database, so
+        without this the first cron tick dies with FileNotFoundError.
+
+        Only stages when the snapshot is absent, which also heals definitions
+        whose staging area was lost (e.g. a container rebuild).
+        """
+        if not input_filename:
+            return
+
+        target = os.path.join(self._staging_path(), job_definition_id, input_filename)
+        if os.path.exists(target):
+            return
+
+        source = os.path.join(self.root_dir, input_filename)
+        if not os.path.exists(source):
+            logger.warning(
+                "marimo-jupyter-scheduler: cannot stage '%s' for definition %s: "
+                "not found under %s",
+                input_filename,
+                job_definition_id,
+                self.root_dir,
+            )
+            return
+
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy2(source, target)
+        logger.info("marimo-jupyter-scheduler: staged %s -> %s", source, target)
 
     def _notify_task_runner(
         self, job_definition_id: str, is_new: bool, job_def: dict, attempt: int = 0
