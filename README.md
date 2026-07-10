@@ -208,50 +208,58 @@ set `SCHEDULER_DB_URL` to a PostgreSQL connection string in the JupyterHub
 
 ## Publishing to PyPI
 
-**1. Bump the version** in `package.json`:
+Releases are published by the `Release` workflow
+([`.github/workflows/release.yml`](.github/workflows/release.yml)), which runs on
+every push to the `release` branch. It builds the frontend, runs the tests,
+verifies the wheel contains the labextension, and uploads to PyPI using the
+`PYPI_API_TOKEN` repository secret. Do not run `twine upload` by hand.
+
+**1. Bump the version** in `package.json` — the only manual step. `pyproject.toml`
+reads it via `hatch-nodejs-version`:
 
 ```json
-"version": "0.1.1"
+"version": "0.2.0"
 ```
 
-**2. Build the production frontend:**
+Commit that to `main`. PyPI refuses to re-upload a version that already exists,
+so a release with an unchanged version will fail at the last step.
+
+**2. Push `main` to `release`:**
 
 ```bash
-source .venv/bin/activate
-jlpm run build:prod
+git push origin main:release
 ```
 
-**3. Build the distribution packages:**
+Watch the run with `gh run watch --branch release`. If the build, tests, or wheel
+check fail, nothing is uploaded and you can fix and re-push the same version.
+Once the upload succeeds the version is permanent.
+
+**3. Verify:**
 
 ```bash
-pip install build
+pip install --upgrade marimo-jupyter-scheduler
+python -c "import marimo_jupyter_scheduler.executor as e; \
+  print(e.RoutingExecutionManager.validate(e.RoutingExecutionManager, '/nonexistent'))"
+# True
+```
+
+### Testing a build locally
+
+To inspect a wheel without publishing:
+
+```bash
+jlpm run build:prod        # required — a wheel without this ships no frontend
 python -m build
-```
-
-This produces `dist/marimo_jupyter_scheduler-<version>.tar.gz` and `.whl`.
-
-**4. Verify the wheel contains the labextension:**
-
-```bash
-pip install check-wheel-contents
 check-wheel-contents dist/*.whl
 unzip -l dist/*.whl | grep labextension
 ```
 
 You should see `share/jupyter/labextensions/marimo-jupyter-scheduler/...` entries.
-
-**5. (Optional) Test on TestPyPI first:**
+To exercise the full install path, upload to TestPyPI rather than PyPI:
 
 ```bash
-pip install twine
 twine upload --repository testpypi dist/*
 pip install --index-url https://test.pypi.org/simple/ marimo-jupyter-scheduler
-```
-
-**6. Upload to PyPI:**
-
-```bash
-twine upload dist/*
 ```
 
 ---
