@@ -1,0 +1,21 @@
+# Normalize all text to LF in the repository. Without this, editing on the
+# Windows side of a /mnt/c checkout rewrites every line ending and the whole
+# tree shows as modified.
+* text=auto eol=lf
+
+# Shell scripts must keep LF even on Windows checkouts, or they will not run.
+*.sh text eol=lf
+
+# Batch files are the one thing that genuinely needs CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Never touch these.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
