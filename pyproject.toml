@@ -64,6 +64,7 @@ artifacts = ["marimo_jupyter_scheduler/labextension"]
 "marimo_jupyter_scheduler/labextension" = "share/jupyter/labextensions/marimo-jupyter-scheduler"
 "install.json" = "share/jupyter/labextensions/marimo-jupyter-scheduler/install.json"
 "jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
+"jupyter-config/jupyter_server_config.py" = "etc/jupyter/jupyter_server_config.py"
 
 [tool.hatch.build.hooks.version]
 path = "marimo_jupyter_scheduler/_version.py"

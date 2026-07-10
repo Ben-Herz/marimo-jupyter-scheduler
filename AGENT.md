@@ -9,7 +9,7 @@ Our layer adds Marimo execution, YAML config-as-code, and an enhanced dashboard 
 ## Key architecture
 
 - **`jupyter-scheduler`** handles: job CRUD, SQLite/PostgreSQL storage, APScheduler cron, base REST API.
-- **We override** execution, environment, task runner, and scheduler classes via `~/.jupyter/jupyter_server_config.py`.
+- **We override** execution, environment, task runner, and scheduler classes. These ship with the package: `jupyter-config/jupyter_server_config.py` is installed as shared-data to `{sys.prefix}/etc/jupyter/jupyter_server_config.py`. They cannot go in `jupyter-config/server-config/*.json` — jupyter_server reads that directory with `ExtensionConfigManager`, which picks up only `jpserver_extensions` and ignores all other traits.
 
 ```python
 c.SchedulerApp.scheduler_class        = "marimo_jupyter_scheduler.scheduler.MarimoScheduler"
