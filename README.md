@@ -47,24 +47,26 @@ jupyter server extension enable marimo_jupyter_scheduler
 
 ### Configure the Marimo executor
 
-Add to `~/.jupyter/jupyter_server_config.py`:
+Nothing to do. `pip install` writes the four class overrides to
+`{sys.prefix}/etc/jupyter/jupyter_server_config.py` and the server loads them on
+startup. To confirm they took effect:
+
+```bash
+python -c "import marimo_jupyter_scheduler.executor as e; \
+  print(e.RoutingExecutionManager.validate(e.RoutingExecutionManager, '/nonexistent'))"
+# True
+```
+
+The shipped defaults sit below `~/.jupyter` and `/etc/jupyter` in precedence, so
+you can still override any of them, e.g. to use PostgreSQL:
 
 ```python
-c.SchedulerApp.scheduler_class = (
-    "marimo_jupyter_scheduler.scheduler.MarimoScheduler"
-)
-c.Scheduler.execution_manager_class = (
-    "marimo_jupyter_scheduler.executor.RoutingExecutionManager"
-)
-c.Scheduler.task_runner_class = (
-    "marimo_jupyter_scheduler.task_runner.FixedTaskRunner"
-)
-c.SchedulerApp.environment_manager_class = (
-    "marimo_jupyter_scheduler.environment.MarimoEnvironmentManager"
-)
-# Optional: use PostgreSQL
-# c.Scheduler.db_url = "postgresql+psycopg2://user:pass@host:5432/scheduler"
+c.Scheduler.db_url = "postgresql+psycopg2://user:pass@host:5432/scheduler"
 ```
+
+A source checkout installed with `pip install -e .` may not place the file. If
+the check above fails, copy `jupyter-config/jupyter_server_config.py` into a
+config directory by hand.
 
 ---
 
@@ -171,26 +173,31 @@ pytest tests/ -v
 
 ## JupyterHub deployment
 
-In your JupyterHub `singleuser` image, add to `/etc/jupyter/jupyter_server_config.py`:
+`pip install marimo-jupyter-scheduler` in the `singleuser` image is enough — the
+class overrides ship with the package. Only add config for what you want to
+change, in `/etc/jupyter/jupyter_server_config.py`:
 
 ```python
 import os
-c.SchedulerApp.scheduler_class = (
-    "marimo_jupyter_scheduler.scheduler.MarimoScheduler"
-)
-c.Scheduler.execution_manager_class = (
-    "marimo_jupyter_scheduler.executor.RoutingExecutionManager"
-)
-c.Scheduler.task_runner_class = (
-    "marimo_jupyter_scheduler.task_runner.FixedTaskRunner"
-)
-c.SchedulerApp.environment_manager_class = (
-    "marimo_jupyter_scheduler.environment.MarimoEnvironmentManager"
-)
 c.Scheduler.db_url = os.environ.get(
     "SCHEDULER_DB_URL",
     "sqlite:////home/jovyan/.jupyter-scheduler.db"
 )
+```
+
+Put deployment config in `/etc/jupyter`, never `~/.jupyter`. Hubs that mount a
+user's home directory over `/home/jovyan` at spawn time will shadow anything
+written to `~/.jupyter` when the image was built, and the server starts with the
+stock jupyter-scheduler classes. That failure is silent: `validate()` rejects
+marimo `.py` notebooks, `TaskRunner.process_queue` swallows the exception, and
+schedules simply never fire.
+
+Verify inside a running container:
+
+```bash
+python -c "import marimo_jupyter_scheduler.executor as e; \
+  print(e.RoutingExecutionManager.validate(e.RoutingExecutionManager, '/nonexistent'))"
+# True
 ```
 
 For a shared PostgreSQL backend (so all Hub users share one job store),
