@@ -24,10 +24,23 @@ class MarimoEnvironmentManager(EnvironmentManager):
     without throwing a KeyError.
     """
 
-    OUTPUT_FORMATS: Dict[str, str] = {
+    # Formats a Marimo notebook can be rendered to. These are what the UI offers
+    # when scheduling a new job.
+    MARIMO_OUTPUT_FORMATS: Dict[str, str] = {
         "html": "HTML",
         "script": "Script",
         "md": "Markdown",
+    }
+
+    # Every format that may appear on a *stored* job, including stock
+    # jupyter-scheduler's `ipynb`. This manager replaces the stock one for all
+    # jobs in the database, and add_job_files() does a bare
+    # mapping[output_format] lookup, so a missing key 500s the whole list_jobs
+    # endpoint for anyone whose DB predates this package. RoutingExecutionManager
+    # runs .ipynb jobs via nbconvert regardless, so they must stay listable.
+    OUTPUT_FORMATS: Dict[str, str] = {
+        **MARIMO_OUTPUT_FORMATS,
+        "ipynb": "Notebook",
     }
 
     def list_environments(self) -> List[RuntimeEnvironment]:
@@ -39,7 +52,7 @@ class MarimoEnvironmentManager(EnvironmentManager):
                 label=env_name,
                 description=f"Python environment: {python_path}",
                 file_extensions=["py"],
-                output_formats=list(self.OUTPUT_FORMATS.keys()),
+                output_formats=list(self.MARIMO_OUTPUT_FORMATS.keys()),
             )
         ]
 
