@@ -18,6 +18,7 @@ MarimoExecutionManager:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -129,9 +130,21 @@ class MarimoExecutionManager(ExecutionManager):
         """
         env = os.environ.copy()
 
-        # Apply _env overrides first (from YAML `env:` block)
-        for key, value in (parameters.pop("_env", None) or {}).items():
-            env[key] = str(value)
+        # Apply _env overrides first (from YAML `env:` block). It is stored as a
+        # JSON string because JobDefinition.parameters is typed Dict[str, str];
+        # see yaml_jobs.serialize_parameters.
+        env_overrides = parameters.pop("_env", None)
+        if isinstance(env_overrides, str):
+            try:
+                env_overrides = json.loads(env_overrides)
+            except ValueError:
+                logger.warning(
+                    "MarimoExecutionManager: could not decode _env parameter %r", env_overrides
+                )
+                env_overrides = None
+        if isinstance(env_overrides, dict):
+            for key, value in env_overrides.items():
+                env[key] = str(value)
 
         # Handle _last_run: inject last successful run datetime
         last_run_param = parameters.pop("_last_run", None)

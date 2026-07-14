@@ -30,6 +30,7 @@ Example YAML:
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import os
 import re
@@ -64,6 +65,22 @@ def _substitute_env(value: Any) -> Any:
     if isinstance(value, list):
         return [_substitute_env(v) for v in value]
     return value
+
+
+def serialize_parameters(parameters: dict[str, Any]) -> dict[str, str]:
+    """
+    Flatten a parameters dict for storage on JobDefinition.parameters.
+
+    jupyter-scheduler types that column as Dict[str, str] (DescribeJobDefinition),
+    so every value must be a string by the time a definition is read back — but
+    the special keys the executor consumes (`_env`, `_last_run`) still have to
+    survive the round trip. Nested values are JSON-encoded here and decoded again
+    in MarimoExecutionManager._build_env.
+    """
+    return {
+        key: json.dumps(value) if isinstance(value, (dict, list)) else str(value)
+        for key, value in parameters.items()
+    }
 
 
 def parse_schedule_file(path: Path) -> list[dict[str, Any]]:

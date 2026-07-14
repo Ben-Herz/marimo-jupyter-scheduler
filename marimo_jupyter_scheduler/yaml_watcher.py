@@ -169,6 +169,8 @@ class YamlScheduleWatcher:
         try:
             from jupyter_scheduler.orm import JobDefinition, create_session
 
+            from .yaml_jobs import serialize_parameters
+
             session_factory = create_session(self.db_url)
             with session_factory() as session:
                 existing = (
@@ -185,10 +187,9 @@ class YamlScheduleWatcher:
                     if not k.startswith("_") and k in valid_columns
                 }
                 if "parameters" in job_def_clean and isinstance(job_def_clean["parameters"], dict):
-                    job_def_clean["parameters"] = {
-                        k: str(v) for k, v in job_def_clean["parameters"].items()
-                        if not isinstance(v, dict)
-                    }
+                    job_def_clean["parameters"] = serialize_parameters(
+                        job_def_clean["parameters"]
+                    )
                 job_def_clean.setdefault("runtime_environment_name", "")
 
                 if existing is None:

@@ -210,6 +210,8 @@ class YamlImportHandler(APIHandler):
     def _upsert_job_definition(self, job_def: dict) -> None:
         from jupyter_scheduler.orm import JobDefinition, create_session
 
+        from .yaml_jobs import serialize_parameters
+
         db_url = self._get_db_url()
         session_factory = create_session(db_url)
 
@@ -219,13 +221,8 @@ class YamlImportHandler(APIHandler):
             k: v for k, v in job_def.items()
             if not k.startswith("_") and k in valid_columns
         }
-        # Strip internal keys from nested parameters dict (e.g. _env is a dict,
-        # not a string — jupyter-scheduler pydantic model rejects non-string values)
         if "parameters" in record_data and isinstance(record_data["parameters"], dict):
-            record_data["parameters"] = {
-                k: str(v) for k, v in record_data["parameters"].items()
-                if not k.startswith("_") and not isinstance(v, dict)
-            }
+            record_data["parameters"] = serialize_parameters(record_data["parameters"])
         record_data.setdefault("runtime_environment_name", "")
 
         with session_factory() as session:
