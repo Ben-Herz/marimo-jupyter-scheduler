@@ -38,6 +38,10 @@ import { StatusBadge } from './components/StatusBadge';
 interface IState {
   stats: IDashboardStats | null;
   allJobs: IJob[];
+  // Jobs for the currently selected definition, fetched server-side filtered by
+  // job_definition_id. allJobs is a capped global list, so a low-frequency
+  // definition's runs are absent from it; the table must not rely on slicing it.
+  selectedJobs: IJob[];
   jobDefinitions: IJobDefinition[];
   selectedDefinition: IJobDefinition | null;
   loading: boolean;
@@ -61,6 +65,7 @@ type Action =
   | { type: 'DELETE_JOB'; jobId: string }
   | { type: 'DELETE_DEFINITION'; id: string }
   | { type: 'SELECT_DEFINITION'; definition: IJobDefinition | null }
+  | { type: 'SET_SELECTED_JOBS'; jobs: IJob[] }
   | { type: 'UPDATE_DEFINITION'; definition: IJobDefinition };
 
 function reducer(state: IState, action: Action): IState {
@@ -99,6 +104,7 @@ function reducer(state: IState, action: Action): IState {
       return {
         ...state,
         allJobs: state.allJobs.filter(j => j.job_id !== action.jobId),
+        selectedJobs: state.selectedJobs.filter(j => j.job_id !== action.jobId),
         stats: state.stats
           ? {
               ...state.stats,
@@ -107,17 +113,20 @@ function reducer(state: IState, action: Action): IState {
             }
           : null,
       };
-    case 'DELETE_DEFINITION':
+    case 'DELETE_DEFINITION': {
+      const deselected = state.selectedDefinition?.job_definition_id === action.id;
       return {
         ...state,
         jobDefinitions: state.jobDefinitions.filter(d => d.job_definition_id !== action.id),
-        selectedDefinition:
-          state.selectedDefinition?.job_definition_id === action.id
-            ? null
-            : state.selectedDefinition,
+        selectedDefinition: deselected ? null : state.selectedDefinition,
+        selectedJobs: deselected ? [] : state.selectedJobs,
       };
+    }
     case 'SELECT_DEFINITION':
-      return { ...state, selectedDefinition: action.definition };
+      // Clear the previous definition's jobs; the effect refetches for the new one.
+      return { ...state, selectedDefinition: action.definition, selectedJobs: [] };
+    case 'SET_SELECTED_JOBS':
+      return { ...state, selectedJobs: action.jobs };
     case 'UPDATE_DEFINITION':
       return {
         ...state,
@@ -151,6 +160,7 @@ schedules:
 const INITIAL_STATE: IState = {
   stats: null,
   allJobs: [],
+  selectedJobs: [],
   jobDefinitions: [],
   selectedDefinition: null,
   loading: false,
@@ -195,6 +205,29 @@ export function Dashboard(): JSX.Element {
     };
   }, [load]);
 
+  // When a definition is selected, fetch its own jobs server-side. The global
+  // allJobs list is capped, so a low-frequency definition's runs may not appear
+  // there at all — slicing it would wrongly show "No jobs yet" beside a green lamp.
+  const selectedId = state.selectedDefinition?.job_definition_id;
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    const fetchSelected = () =>
+      listJobs({ job_definition_id: selectedId, limit: 100 })
+        .then(resp => {
+          if (!cancelled) dispatch({ type: 'SET_SELECTED_JOBS', jobs: resp.jobs });
+        })
+        .catch(() => {
+          /* transient; the interval will retry */
+        });
+    void fetchSelected();
+    const id = setInterval(fetchSelected, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [selectedId]);
+
   const handleStop = useCallback(async (jobId: string) => {
     await stopJob(jobId);
     void load();
@@ -231,7 +264,7 @@ export function Dashboard(): JSX.Element {
   }, [state.yamlText, load]);
 
   const definitionFilteredJobs = state.selectedDefinition
-    ? state.allJobs.filter(j => j.job_definition_id === state.selectedDefinition!.job_definition_id)
+    ? state.selectedJobs
     : state.allJobs;
 
   const filteredJobs =
@@ -348,9 +381,11 @@ export function Dashboard(): JSX.Element {
               onStop={jobId => void handleStop(jobId)}
               onDelete={jobId => void handleDelete(jobId)}
               emptyMessage={
-                state.filterStatus === 'ALL'
-                  ? 'No jobs yet. Create one with the YAML Schedules tab or the jupyter-scheduler UI.'
-                  : `No ${state.filterStatus} jobs.`
+                state.filterStatus !== 'ALL'
+                  ? `No ${state.filterStatus} jobs.`
+                  : state.selectedDefinition
+                    ? 'No runs for this schedule yet.'
+                    : 'No jobs yet. Create one with the YAML Schedules tab or the jupyter-scheduler UI.'
               }
             />
           </Section>
