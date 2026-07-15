@@ -118,7 +118,42 @@ class DashboardHandler(APIHandler):
                 "by_status": by_status,
                 "recent_failures": _recent("FAILED", 20),
                 "in_progress": _recent("IN_PROGRESS", 100),
+                "last_run_status": self._last_run_status(session, Job),
             }
+
+    @staticmethod
+    def _last_run_status(session, Job) -> dict:
+        """Map each job definition to the status of its most recent terminal run.
+
+        The dashboard's status lamp needs the last COMPLETED/FAILED/STOPPED run
+        per definition. Computing this from a globally-limited job list makes a
+        low-frequency definition go grey once busier definitions bury its runs
+        past the limit, so resolve it in SQL with one row per definition.
+        """
+        from sqlalchemy import func
+
+        # end_time is null until a job reaches a terminal state; fall back to
+        # start_time so a STOPPED job with no end_time still orders correctly.
+        order_time = func.coalesce(Job.end_time, Job.start_time)
+        ranked = (
+            session.query(
+                Job.job_definition_id.label("def_id"),
+                Job.status.label("status"),
+                func.row_number()
+                .over(
+                    partition_by=Job.job_definition_id,
+                    order_by=order_time.desc(),
+                )
+                .label("rn"),
+            )
+            .filter(
+                Job.job_definition_id.isnot(None),
+                Job.status.in_(("COMPLETED", "FAILED", "STOPPED")),
+            )
+            .subquery()
+        )
+        rows = session.query(ranked.c.def_id, ranked.c.status).filter(ranked.c.rn == 1)
+        return {str(def_id): str(status) for def_id, status in rows}
 
     def _job_summary(self, job) -> dict:
         return {

@@ -292,7 +292,7 @@ export function Dashboard(): JSX.Element {
           <Section title={`Scheduled Definitions (${state.jobDefinitions.length})`}>
             <DefinitionsTable
               definitions={state.jobDefinitions}
-              allJobs={state.allJobs}
+              lastRunStatuses={state.stats?.last_run_status ?? {}}
               selectedId={state.selectedDefinition?.job_definition_id}
               onSelect={def =>
                 dispatch({
@@ -403,22 +403,13 @@ export function Dashboard(): JSX.Element {
 
 function lastRunStatus(
   definitionId: string,
-  allJobs: IJob[]
+  lastRunStatuses: Record<string, JobStatus>
 ): 'COMPLETED' | 'FAILED' | null {
-  // Find the most recent job for this definition that has a terminal status
-  const runs = allJobs
-    .filter(
-      j =>
-        j.job_definition_id === definitionId &&
-        (j.status === 'COMPLETED' || j.status === 'FAILED' || j.status === 'STOPPED')
-    )
-    .sort((a, b) => {
-      const ta = a.end_time ?? a.start_time ?? '';
-      const tb = b.end_time ?? b.start_time ?? '';
-      return tb < ta ? -1 : tb > ta ? 1 : 0;
-    });
-  if (runs.length === 0) return null;
-  return runs[0].status === 'COMPLETED' ? 'COMPLETED' : 'FAILED';
+  // The server resolves each definition's most recent terminal run; a missing
+  // entry means no run yet (grey). STOPPED, like FAILED, shows red.
+  const status = lastRunStatuses[definitionId];
+  if (!status) return null;
+  return status === 'COMPLETED' ? 'COMPLETED' : 'FAILED';
 }
 
 function StatusLamp({ status }: { status: 'COMPLETED' | 'FAILED' | null }): JSX.Element {
@@ -435,13 +426,13 @@ function StatusLamp({ status }: { status: 'COMPLETED' | 'FAILED' | null }): JSX.
 
 function DefinitionsTable({
   definitions,
-  allJobs,
+  lastRunStatuses,
   selectedId,
   onSelect,
   onDelete,
 }: {
   definitions: IJobDefinition[];
-  allJobs: IJob[];
+  lastRunStatuses: Record<string, JobStatus>;
   selectedId?: string;
   onSelect?: (def: IJobDefinition) => void;
   onDelete?: (id: string) => void;
@@ -479,7 +470,7 @@ function DefinitionsTable({
               title={def.job_definition_id === selectedId ? 'Click to deselect' : 'Click to filter runs'}
             >
               <td style={{ textAlign: 'center', padding: '7px 8px' }}>
-                <StatusLamp status={lastRunStatus(def.job_definition_id, allJobs)} />
+                <StatusLamp status={lastRunStatus(def.job_definition_id, lastRunStatuses)} />
               </td>
               <td title={def.name}>{def.name || <em>unnamed</em>}</td>
               <td title={def.input_filename}>{def.input_filename}</td>

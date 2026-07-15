@@ -49,6 +49,10 @@ export interface IDashboardStats {
   by_status: Partial<Record<JobStatus, number>>;
   recent_failures: IJob[];
   in_progress: IJob[];
+  // Status of each definition's most recent terminal run, keyed by
+  // job_definition_id. Computed server-side so a definition's lamp does not go
+  // grey just because busier definitions bury its runs past the jobs list limit.
+  last_run_status?: Record<string, JobStatus>;
   warning?: string;
 }
 
