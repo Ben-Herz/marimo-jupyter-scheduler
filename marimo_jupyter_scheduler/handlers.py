@@ -63,7 +63,8 @@ class DashboardHandler(APIHandler):
           "status_message": "..."
         }
       ],
-      "in_progress": [...]
+      "in_progress": [...],
+      "db_error": null   // diagnostic string when the database rejects writes
     }
     """
 
@@ -94,7 +95,14 @@ class DashboardHandler(APIHandler):
 
         from sqlalchemy import func
 
-        session_factory = _get_session_factory(self._get_db_url())
+        from .db_health import db_health
+
+        db_url = self._get_db_url()
+        # Reads succeed against a read-only database, so the stats below would
+        # look perfectly healthy while every scheduled run silently fails.
+        db_error = db_health(db_url)
+
+        session_factory = _get_session_factory(db_url)
         with session_factory() as session:
             # Aggregate in SQL rather than loading every job row into memory.
             by_status = {
@@ -119,6 +127,7 @@ class DashboardHandler(APIHandler):
                 "recent_failures": _recent("FAILED", 20),
                 "in_progress": _recent("IN_PROGRESS", 100),
                 "last_run_status": self._last_run_status(session, Job),
+                "db_error": db_error,
             }
 
     @staticmethod

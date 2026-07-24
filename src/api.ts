@@ -53,6 +53,9 @@ export interface IDashboardStats {
   // job_definition_id. Computed server-side so a definition's lamp does not go
   // grey just because busier definitions bury its runs past the jobs list limit.
   last_run_status?: Record<string, JobStatus>;
+  // Set when the scheduler database rejects writes. Reads keep working, so
+  // without this the dashboard would look healthy while no job can be created.
+  db_error?: string | null;
   warning?: string;
 }
 

@@ -307,6 +307,13 @@ export function Dashboard(): JSX.Element {
         <div className="marimo-scheduler-error">⚠ {state.error}</div>
       )}
 
+      {stats?.db_error && (
+        <div className="marimo-scheduler-error">
+          ⚠ Scheduler database is not writable — scheduled jobs cannot run.
+          <div className="marimo-scheduler-db-error-detail">{stats.db_error}</div>
+        </div>
+      )}
+
       {/* ─────────────────── DASHBOARD TAB ─────────────────── */}
       {state.activeTab === 'dashboard' && (
         <>

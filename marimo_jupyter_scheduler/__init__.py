@@ -62,6 +62,20 @@ def _load_jupyter_server_extension(server_app):
         if not _db_url:
             _db_url = f"sqlite:///{jupyter_data_dir()}/scheduler.sqlite"
 
+        # A read-only database breaks every write path (job creation, YAML
+        # import, status updates) while leaving reads intact, so without this
+        # check the first symptom is a create_job traceback whenever a schedule
+        # next fires — potentially hours later.
+        from .db_health import db_health
+
+        _db_problem = db_health(_db_url)
+        if _db_problem:
+            server_app.log.error(
+                "marimo-jupyter-scheduler: %s\n"
+                "Scheduled jobs cannot be created until this is fixed.",
+                _db_problem,
+            )
+
         try:
             scheduler = settings.get("scheduler")
             watcher = YamlScheduleWatcher(root_dir=root_dir, db_url=_db_url, scheduler=scheduler)

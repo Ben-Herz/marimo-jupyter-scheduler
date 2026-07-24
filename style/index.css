@@ -140,6 +140,16 @@
   font-size: var(--jp-ui-font-size1);
 }
 
+/* Diagnostic detail under the read-only database banner: paths, modes and uids,
+   emitted as multiple lines by db_health.check_db_writable(). */
+.marimo-scheduler-db-error-detail {
+  margin-top: 4px;
+  white-space: pre-line;
+  font-family: var(--jp-code-font-family, monospace);
+  font-size: var(--jp-ui-font-size0);
+  opacity: 0.85;
+}
+
 .marimo-scheduler-error-inline {
   color: var(--jp-error-color1, #c5221f);
   font-size: var(--jp-ui-font-size1);
